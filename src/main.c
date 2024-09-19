@@ -194,6 +194,7 @@ int render()
                 {
                     last_t = t;
                     last_wall = (int)i;
+
                     portal = w->portal;
                 }
 
