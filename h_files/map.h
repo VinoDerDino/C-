@@ -7,15 +7,24 @@
 
 #define ROWS 10
 #define COLS 10
+#define SCENE_COUNT 1
+
+typedef struct {
+    int id;
+    Tile map[100];
+    int neighbors[4];
+} Sector;
 
 typedef struct
 {
-    Tile map[1024];
-    int n;
-    int width, height;
-} World;
+    Sector sectors[10];
+    int curr_sector;
+    int n_sectors;
+    int scene_portal;
+} Scene;
 
-int load_world(const char *filename, World *world);
-void drawMap(SDL_Renderer *renderer, SDL_Texture *textures[TEXTURE_COUNT], World *world, int x, int y);
+int load_scene(const char *filename, Scene *scene);
+void drawMap(SDL_Renderer *renderer, SDL_Texture *textures[TILE_TEXTURE_COUNT], Scene scene, int x, int y);
+void map_check_enemyId(Scene *scene, int x, int y);
 
 #endif

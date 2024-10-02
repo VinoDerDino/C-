@@ -2,140 +2,98 @@
 #include <SDL2/SDL.h>
 #include "tile.h"
 #include "map.h"
+#include "player.h"
 
-typedef struct
-{
-    int state;
-    int x, y;
-} Player;
+int init_state(GameState *gamestate) {
 
-typedef struct
-{
-    SDL_Window *window;
-    SDL_Renderer *renderer;
+    gamestate->player.x = 120;
+    gamestate->player.y = 120;
+    gamestate->player.curr_scene = 0;
 
-    World world;
-    Player player;
-} State;
+    gamestate->scenes[0].n_sectors = 0;
+    gamestate->scenes[0].curr_sector = 0;
+
+    int loading = load_scene("res/level1.txt", &gamestate->scenes[0]);
+    if(loading != 0) {
+        printf("Error while loading: %d", loading);
+        return 1;
+    };
+
+    gamestate->window = SDL_CreateWindow("Tile Map", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, ROWS * TILE_SIZE, COLS * TILE_SIZE, SDL_WINDOW_SHOWN);
+    if (!gamestate->window) {
+        (void)printf("Window could not be created!\n");
+        return 1;
+    }
+
+    gamestate->renderer = SDL_CreateRenderer(gamestate->window, -1, SDL_RENDERER_ACCELERATED);
+    if(!gamestate->renderer) {
+        (void)printf("Renderer could not be created!\n");
+        return 1;
+    }
+
+    gamestate->tile_textures[0] = load_texture("res/texture_missing.bmp", gamestate->renderer);
+    gamestate->tile_textures[1] = load_texture("res/grass.bmp", gamestate->renderer);
+    gamestate->tile_textures[2] = load_texture("res/stone.bmp", gamestate->renderer);
+    gamestate->tile_textures[3] = load_texture("res/water.bmp", gamestate->renderer);
+
+    if (gamestate->tile_textures[0] == NULL || gamestate->tile_textures[1] == NULL || gamestate->tile_textures[2] == NULL || gamestate->tile_textures[2] == NULL) {
+        printf("Failed to load one or more textures!\n");
+        return 1;
+    }
+
+    return 0;
+}
 
 int main(int argc, char *argv[])
 {
     (void)argc;
     (void)argv;
 
-    State state;
-    state.player.x = 120;
-    state.player.y = 120;
-
-    state.world.n = 0;
-    int retval = load_world("res/map.txt", &state.world);
-
-    if (retval != 0)
-    {
-        printf("terminated, error: %d", retval);
+    GameState gamestate;
+    if(init_state(&gamestate) != 0) {
+        printf("Error while initialising 'state'\n");
         return 1;
     }
-
-    printf("test\n");
-    state.window = SDL_CreateWindow("Tile Map", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, ROWS * TILE_SIZE, COLS * TILE_SIZE, SDL_WINDOW_SHOWN);
-    if (!state.window)
-    {
-        printf("Window could not be created! SDL_Error: %s\n", SDL_GetError());
-        return 1;
-    }
-
-    state.renderer = SDL_CreateRenderer(state.window, -1, SDL_RENDERER_ACCELERATED);
-    if (!state.renderer)
-    {
-        SDL_DestroyWindow(state.window);
-        printf("Renderer could not be created! SDL_Error: %s\n", SDL_GetError());
-        return 1;
-    }
-
-    SDL_Texture *textures[TEXTURE_COUNT];
-    textures[0] = load_texture("res/texture_missing.bmp", state.renderer);
-    textures[1] = load_texture("res/grass.bmp", state.renderer);
-    textures[2] = load_texture("res/stone.bmp", state.renderer);
-    textures[3] = load_texture("res/water.bmp", state.renderer);
-
-    if (textures[0] == NULL || textures[1] == NULL || textures[2] == NULL || textures[2] == NULL)
-    {
-        printf("Failed to load one or more textures!\n");
-        return 1;
-    }
-
-    (void)printf("Map dimensions: rows = %d, cols = %d\n", state.world.height, state.world.width);
 
     int running = 1;
     SDL_Event event;
 
-    while (running)
-    {
-        while (SDL_PollEvent(&event))
-        {
-            if (event.type == SDL_QUIT)
-            {
+    int frameCount = 0;
+    float fps = 0.0f;
+    Uint32 startTime = SDL_GetTicks();
+
+    while (running) {
+        while (SDL_PollEvent(&event)) {
+
+            if (event.type == SDL_QUIT) {
                 running = 0;
             }
-
-            const uint8_t *keystate = SDL_GetKeyboardState(NULL);
-
-            if (keystate[SDLK_RIGHT & 0xFFFF])
-            {
-                state.player.x += MOVE_SPEED;
-                if (state.player.x >= state.world.width * TILE_SIZE)
-                    state.player.x = state.world.width * TILE_SIZE - 1;
-            }
-
-            if (keystate[SDLK_LEFT & 0xFFFF])
-            {
-                state.player.x -= MOVE_SPEED;
-                if (state.player.x < 0)
-                    state.player.x = 0;
-            }
-
-            if (keystate[SDLK_UP & 0xFFFF])
-            {
-                state.player.y -= MOVE_SPEED;
-                if (state.player.y < 0)
-                    state.player.y = 0;
-            }
-
-            if (keystate[SDLK_DOWN & 0xFFFF])
-            {
-                state.player.y += MOVE_SPEED;
-                if (state.player.y >= state.world.height * TILE_SIZE)
-                    state.player.y = state.world.height * TILE_SIZE - 1;
-            }
-
-            if (event.type == SDL_MOUSEBUTTONDOWN)
-            {
-                if (event.button.button == SDL_BUTTON_LEFT)
-                {
-                    int x = (int)(event.button.x / TILE_SIZE), y = (int)(event.button.y / TILE_SIZE);
-
-                    for (int i = 0; i < state.world.n; i++)
-                    {
-                        if (x == state.world.map[i].x && y == state.world.map[i].y)
-                        {
-                            printf("x = %d, y = %d, id = %d, type = %d\n", i % state.world.width, (int)(i / state.world.width), state.world.map[i].id, state.world.map[i].type);
-                        }
-                    }
-                }
-            }
         }
+        const uint8_t *keystate = SDL_GetKeyboardState(NULL);
 
-        SDL_RenderClear(state.renderer);
-        drawMap(state.renderer, textures, &state.world, state.player.x, state.player.y);
-        SDL_RenderPresent(state.renderer);
+        player_move(keystate, 0, &gamestate);
+        
+        map_check_enemyId(&gamestate.scenes[0], gamestate.player.x, gamestate.player.y);
+
+        SDL_RenderClear(gamestate.renderer);
+        drawMap(gamestate.renderer, gamestate.tile_textures, gamestate.scenes[0], gamestate.player.x, gamestate.player.y);
+        SDL_RenderPresent(gamestate.renderer);
+
+        frameCount++;
+        if (SDL_GetTicks() > startTime + 1000) {
+            fps = frameCount / ((SDL_GetTicks() - startTime) / 1000.0f);
+            frameCount = 0;
+            startTime = SDL_GetTicks();
+            (void)printf("FPS: %f\n", fps);
+        }
     }
 
-    for (int i = 0; i < 3; i++)
+    for (int i = 0; i < 4; i++)
     {
-        SDL_DestroyTexture(textures[i]);
+        SDL_DestroyTexture(gamestate.tile_textures[i]);
     }
-    SDL_DestroyRenderer(state.renderer);
-    SDL_DestroyWindow(state.window);
+    SDL_DestroyRenderer(gamestate.renderer);
+    SDL_DestroyWindow(gamestate.window);
     SDL_Quit();
 
     return 0;

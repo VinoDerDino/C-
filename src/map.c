@@ -1,68 +1,69 @@
 #include "map.h"
 
-int load_world(const char *filename, World *world) {
-    if(!world || !filename) {
+int load_scene(const char *filename, Scene *scene) {
+    if(!scene || !filename) {
         return -1;
     }
-    int retval = 0;
 
+    int retval = 0;
     FILE *file = fopen(filename, "r");
     if(!file) {
         retval = 1; goto done;
     }
-    
-    if(fscanf(file, "%d %d", &world->width, &world->height) != 2) {
-        retval = 1;
-        (void)fclose(file);
-        goto done;
+
+    int sector_count = 0;
+    /* Reading Sector_Count */
+    if(fscanf(file, "%d", &sector_count) != 1) {
+        retval = 2; goto done;
     }
 
-    int i = -1;
-    while(i++ < (world->height * world->width)) {
-        if (fscanf(file, "%d,%d,%d", &world->map[world->n].type, &world->map[world->n].enemyId, &world->map[world->n].eventId) != 3) {
-            retval = 3;
-            (void)fclose(file);
-            goto done;
+    for(int i = 0; i < sector_count; i++) {
+        /* Reading Sector_ID */
+        if(fscanf(file, "%d", &scene->sectors[scene->n_sectors].id) != 1) {
+            retval = 3; goto done;
         }
-        world->map[world->n].x = i % world->width;
-        world->map[world->n++].y = i / world->width;
+        /* Reading Sector_Neighbors */
+        if(fscanf(file, "%d,%d,%d,%d", &scene->sectors[scene->n_sectors].neighbors[0], &scene->sectors[scene->n_sectors].neighbors[1], &scene->sectors[scene->n_sectors].neighbors[2], &scene->sectors[scene->n_sectors].neighbors[3]) != 4) {
+            retval = 4; goto done;
+        }
+
+        /* Reading Sector_Tiles */
+        for(int i = 0; i < 100; i++) {
+            if(fscanf(file, "%d,%d,%d", 
+                        &scene->sectors[scene->n_sectors].map[i].type,
+                        &scene->sectors[scene->n_sectors].map[i].enemyId, 
+                        &scene->sectors[scene->n_sectors].map[i].eventId) != 3) {
+                retval = 5; goto done;
+            }
+        }
+
+        scene->n_sectors += 1;
     }
 
     goto done;
 done: 
+    (void)fclose(file);
     return retval;
 }
 
-void drawMap(SDL_Renderer *renderer, SDL_Texture *textures[TEXTURE_COUNT], World *world, int x, int y) {
-    if (x < 0 || y < 0 || y >= TILE_SIZE * world->height || x >= TILE_SIZE * world->width) {
-        printf("out of mapbounds\n");
+void drawMap(SDL_Renderer *renderer, SDL_Texture *textures[TILE_TEXTURE_COUNT], Scene scene, int x, int y) {
+    if (x < 0 || y < 0 || y >= TILE_SIZE * ROWS || x >= TILE_SIZE * COLS) {
+        printf("out of mapbounds x=%d, y=%d\n", x, y);
         return;
     }
 
-    int x_off = x / TILE_SIZE;
-    int y_off = y / TILE_SIZE;
+    for(int row = 0; row < ROWS; row++) {
+        for(int col = 0; col < COLS; col++) {
+            int index = row * COLS + col;
 
-    int startCol = (x_off / COLS) * COLS;
-    int startRow = (y_off / ROWS) * ROWS;
-
-    if (startCol < 0) startCol = 0;
-    if (startRow < 0) startRow = 0;
-
-    if (startCol + COLS > world->width) startCol = world->width - COLS;
-    if (startRow + ROWS > world->height) startRow = world->height - ROWS;
-
-    for (int row = startRow; row < startRow + ROWS; row++) {
-        for (int col = startCol; col < startCol + COLS; col++) {
-            int index = row * world->width + col;
-
-            int screenX = (col - startCol) * TILE_SIZE;
-            int screenY = (row - startRow) * TILE_SIZE;
+            int screenX = col * TILE_SIZE;
+            int screenY = row * TILE_SIZE;
 
             SDL_Rect rect = { screenX, screenY, TILE_SIZE, TILE_SIZE };
-
+            
             SDL_Texture *texture = NULL;
-            if (world->map[index].type >= 0 && world->map[index].type < TEXTURE_COUNT) {
-                texture = textures[world->map[index].type];
+            if (scene.sectors[scene.curr_sector].map[index].type >= 0 && scene.sectors[scene.curr_sector].map[index].type < TILE_TEXTURE_COUNT) {
+                texture = textures[scene.sectors[scene.curr_sector].map[index].type];
             }
 
             if (texture != NULL) {
@@ -73,12 +74,9 @@ void drawMap(SDL_Renderer *renderer, SDL_Texture *textures[TEXTURE_COUNT], World
         }
     }
 
-    int redPointX = x % TILE_SIZE;
-    int redPointY = y % TILE_SIZE;
-
     SDL_Rect redPoint = {
-        (x_off - startCol) * TILE_SIZE + redPointX - TILE_SIZE / 4,
-        (y_off - startRow) * TILE_SIZE + redPointY - TILE_SIZE / 4,
+        x - TILE_SIZE / 4,
+        y - TILE_SIZE / 4,
         TILE_SIZE / 2,
         TILE_SIZE / 2
     };
@@ -87,4 +85,14 @@ void drawMap(SDL_Renderer *renderer, SDL_Texture *textures[TEXTURE_COUNT], World
     SDL_RenderFillRect(renderer, &redPoint);
 
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+}
+
+void map_check_enemyId(Scene *scene, int x, int y){
+    int col = x / TILE_SIZE;
+    int row = y / TILE_SIZE;
+
+    (void)col;
+    (void)row;
+
+    (void)scene;
 }
